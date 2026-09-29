@@ -15,7 +15,7 @@ async function init() {
         parseCSV(csvText);
         renderHome();
     } catch (error) {
-        appContent.innerHTML = `<div class="text-center" style="color:red;">Error al cargar el inventario. Verifica tu conexión a internet o los permisos del documento.</div>`;
+        appContent.innerHTML = '<div class="text-center" style="color:red;">Error al cargar el inventario. Verifica tu conexión a internet o los permisos del documento.</div>';
         console.error("Error fetching CSV:", error);
     }
 }
@@ -23,7 +23,6 @@ async function init() {
 function parseCSV(text) {
     const lines = text.split('\n').filter(line => line.trim() !== '');
     
-    // Si la primera fila es encabezado (ej. "Descripción", "Articulo"), empezamos desde la fila 1
     let startIndex = 0;
     if (lines[0].toLowerCase().includes('descrip') || lines[0].toLowerCase().includes('rubro') || lines[0].toLowerCase().includes('art') || !lines[0].includes('-')) {
         startIndex = 1;
@@ -31,12 +30,8 @@ function parseCSV(text) {
 
     for (let i = startIndex; i < lines.length; i++) {
         let line = lines[i].replace(/^"|"$/g, '').trim(); 
-        
-        // El formato CSV separa por comas, tomamos la primera columna ignorando comas internas
-        // Un split simple funciona si no hay comas literales en la descripción.
         let rawName = line.split(',')[0].replace(/(^"|"$)/g, '').trim();
 
-        // Extraer prefijo (Asume formato: "PREFIJO - Nombre" o "PREFIJO_Nombre" o "PREFIJO Nombre")
         let match = rawName.match(/^([A-Z0-9]+)\s*[-_]?\s*(.+)$/i);
         if (match) {
             let dept = match[1].toUpperCase();
@@ -58,22 +53,22 @@ function renderHome() {
     btnBack.classList.add('hidden');
     headerTitle.textContent = "Inventario Ivette";
 
-    let html = `<div class="container">`;
+    let html = '<div class="container">';
     const depts = Object.keys(inventoryData).sort();
     
     if (depts.length === 0) {
-        html += `<div class="text-center">No se encontraron departamentos. Verifica el formato del CSV de Google Sheets.</div>`;
+        html += '<div class="text-center">No se encontraron departamentos. Verifica el formato del CSV de Google Sheets.</div>';
     } else {
-        html += `<p style="margin-bottom:15px; color:#555;">Seleccione un departamento:</p>`;
+        html += '<p style="margin-bottom:15px; color:#555;">Seleccione un departamento:</p>';
         depts.forEach(dept => {
-            html += `<button class="dept-btn" onclick="renderDept('${dept}')">📂 Departamento: ${dept}</button>`;
+            html += '<button class="dept-btn" onclick="renderDept(\'' + dept + '\')">📂 Departamento: ' + dept + '</button>';
         });
         
-        html += `<hr style="margin: 25px 0; border: 0; border-top: 1px solid #ccc;">`;
-        html += `<button class="btn btn-danger" onclick="clearAllData()">Borrar TODO el inventario</button>`;
+        html += '<hr style="margin: 25px 0; border: 0; border-top: 1px solid #ccc;">';
+        html += '<button class="btn btn-danger" onclick="clearAllData()">Borrar TODO el inventario</button>';
     }
     
-    html += `</div>`;
+    html += '</div>';
     appContent.innerHTML = html;
 }
 
@@ -83,8 +78,8 @@ window.renderDept = function(dept) {
     headerTitle.textContent = "Dpto: " + dept;
 
     const items = inventoryData[dept];
-    let html = `<div class="container" id="dept-form">`;
-    html += `<p style="margin-bottom:15px; color:#555;">Ingrese las cantidades. Puede usar sumas (ej: 5 + 10).</p>`;
+    let html = '<div class="container" id="dept-form">';
+    html += '<p style="margin-bottom:15px; color:#555;">Ingrese las cantidades. Puede usar sumas (ej: 5 + 10).</p>';
     
     items.forEach((item) => {
         let savedValue = savedData[item.originalName] || '';
@@ -99,14 +94,11 @@ window.renderDept = function(dept) {
         `;
     });
 
-    html += `
-        <button class="btn btn-primary" onclick="saveDept()">Guardar / Agregar al inventario</button>
-        <button class="btn btn-danger" onclick="clearDept('${dept}')">Borrar e iniciar desde cero</button>
-    </div>`;
+    html += '<button class="btn btn-primary" onclick="saveDept()">Guardar / Agregar al inventario</button>';
+    html += '<button class="btn btn-danger" onclick="clearDept(\'' + dept + '\')">Borrar e iniciar desde cero</button>';
+    html += '</div>';
 
     appContent.innerHTML = html;
-    
-    // Scroll arriba
     window.scrollTo(0,0);
 }
 
@@ -117,7 +109,7 @@ window.evaluateInput = function(inputEl) {
     try {
         let sanitized = val.replace(/[^0-9+\-*/(). ]/g, '');
         if (sanitized) {
-            let result = Function(\`'use strict'; return (\${sanitized})\`)();
+            let result = Function("'use strict'; return (" + sanitized + ")")();
             if (result !== undefined && !isNaN(result)) {
                 inputEl.value = result;
             }
@@ -130,7 +122,7 @@ window.evaluateInput = function(inputEl) {
 window.saveDept = function() {
     const inputs = document.querySelectorAll('.item-input');
     inputs.forEach(input => {
-        evaluateInput(input); // Convertir operaciones a resultado final
+        evaluateInput(input); 
         
         const id = input.getAttribute('data-id');
         const val = input.value.trim();
@@ -142,12 +134,12 @@ window.saveDept = function() {
     });
     
     localStorage.setItem('inventario_ivette_data', JSON.stringify(savedData));
-    alert("¡Inventario del departamento guardado correctamente!");
+    alert("¡Inventario guardado correctamente!");
     renderHome();
 }
 
 window.clearDept = function(dept) {
-    if(confirm(\`¿Estás seguro de borrar los datos contados de '\${dept}' e iniciar desde cero?\`)) {
+    if(confirm("¿Estás seguro de borrar los datos contados de " + dept + " e iniciar desde cero?")) {
         const items = inventoryData[dept];
         items.forEach(item => {
             delete savedData[item.originalName];
@@ -167,9 +159,7 @@ window.clearAllData = function() {
 }
 
 btnBack.addEventListener('click', () => {
-    // Regresar al home
     renderHome();
 });
 
-// Arrancar App
 init();
