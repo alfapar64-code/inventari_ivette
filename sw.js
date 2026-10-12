@@ -1,10 +1,11 @@
-const CACHE_NAME = 'inventario-ivette-v9';
+const CACHE_NAME = 'inventario-ivette-v10';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
     './app.js',
-    './manifest.json'
+    './manifest.json',
+    'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js'
 ];
 
 self.addEventListener('install', event => {
