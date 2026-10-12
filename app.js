@@ -30,7 +30,6 @@ function parseCSV(text) {
     const lines = text.split('\n').filter(line => line.trim() !== '');
     const delimiter = text.includes(';') && !text.includes('DPTO.,') ? ';' : ',';
     
-    // Mapeo automático de columnas
     let headers = lines[0].split(delimiter).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
     let dptoIdx = -1, descIdx = -1, codeIdx = -1;
     
@@ -41,7 +40,6 @@ function parseCSV(text) {
         else if (h.includes('cod') || h.includes('cód') || h.includes('barra')) codeIdx = i;
     }
     
-    // Por si no hay encabezados, usamos las primeras columnas por defecto
     if (dptoIdx === -1) dptoIdx = 0;
     if (descIdx === -1) descIdx = 1;
     
@@ -62,7 +60,6 @@ function parseCSV(text) {
         if (cols.length > Math.max(dptoIdx, descIdx)) {
             let dept = cols[dptoIdx].replace(/^"|"$/g, '').trim().toUpperCase();
             let originalName = cols[descIdx].replace(/^"|"$/g, '').trim();
-            // Extracción del código de barras si la columna existe
             let barcode = (codeIdx !== -1 && codeIdx < cols.length) ? cols[codeIdx].replace(/^"|"$/g, '').trim() : '';
 
             if (dept === "" || originalName === "") continue;
@@ -96,7 +93,9 @@ function renderHome() {
     if (depts.length === 0) {
         html += '<div class="text-center">No se encontraron departamentos.</div>';
     } else {
-        html += '<button class="btn btn-info" onclick="exportPromotions()">📊 Extraer Promociones (TODO EL INVENTARIO)</button>';
+        // Nuevos botones de exportación general
+        html += '<button class="btn" style="background-color: #2e7d32; color: white; margin-bottom: 10px;" onclick="exportInventory()">📦 Exportar Inventario Contado (TODO)</button>';
+        html += '<button class="btn btn-info" onclick="exportPromotions()">📊 Extraer Promociones (TODO)</button>';
         html += '<p style="margin:20px 0 15px 0; color:#555;">Seleccione un departamento:</p>';
         
         depts.forEach(dept => {
@@ -117,6 +116,9 @@ window.renderDept = function(dept) {
 
     const items = inventoryData[dept];
     let html = '<div class="container" id="dept-form">';
+    
+    // Nuevos botones de exportación por departamento
+    html += '<button class="btn" style="background-color: #2e7d32; color: white; margin-bottom: 10px;" onclick="exportInventory(\'' + dept + '\')">📦 Exportar Inventario Contado (' + dept + ')</button>';
     html += '<button class="btn btn-info" onclick="exportPromotions(\'' + dept + '\')">📄 Extraer Promociones (' + dept + ')</button>';
     html += '<p style="margin:15px 0; color:#555; font-size:0.9rem;">Autoguardado activado. Los datos se guardan solos al escribir.</p>';
     
@@ -198,6 +200,55 @@ window.handleItemChange = function(originalName, idx, isMath) {
     }
 }
 
+// EXPORTACIÓN DEL INVENTARIO GENERAL
+window.exportInventory = function(dept = null) {
+    let itemsToExport = [];
+    
+    for (let d in inventoryData) {
+        if (dept && d !== dept) continue; 
+        
+        inventoryData[d].forEach(item => {
+            let data = savedData[item.originalName];
+            let qty = (data && data.qty) ? data.qty : '';
+            let expDate = (data && data.expDate) ? data.expDate : '';
+            
+            itemsToExport.push({
+                dept: d, 
+                barcode: item.barcode || '',
+                name: item.name, 
+                qty: qty, 
+                expDate: expDate
+            });
+        });
+    }
+    
+    if (itemsToExport.length === 0) {
+        alert("No hay productos cargados en el sistema para exportar.");
+        return;
+    }
+
+    let now = new Date();
+    let dateString = now.toLocaleDateString('es-AR') + ' a las ' + now.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
+    
+    let csvContent = "\uFEFF"; 
+    csvContent += `"Inventario exportado el: ${dateString}"\n\n`; 
+    csvContent += "Departamento;Codigo de Barras;Rubro;Cantidad Contada;Fecha de Vencimiento\n";
+    
+    itemsToExport.forEach(row => {
+        csvContent += `${row.dept};"${row.barcode}";"${row.name}";${row.qty};${row.expDate}\n`;
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", dept ? `Inventario_Realizado_${dept}.csv` : "Inventario_Realizado_Completo.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// EXPORTACIÓN A CSV CON FECHA (PROMOCIONES)
 window.exportPromotions = function(dept = null) {
     let itemsToExport = [];
     for (let d in inventoryData) {
@@ -279,7 +330,6 @@ document.getElementById('btn-scan').addEventListener('click', () => {
         { facingMode: "environment" }, 
         { fps: 10, qrbox: { width: 250, height: 150 } },
         (decodedText, decodedResult) => {
-            // Se encontró un código, apagar la cámara y buscar
             html5QrcodeScanner.stop().then(() => {
                 document.getElementById('reader-container').classList.add('hidden');
                 findAndOpenProduct(decodedText);
@@ -324,20 +374,17 @@ function findAndOpenProduct(barcode) {
     }
 
     if (found) {
-        renderDept(foundDept); // Entrar a la categoría correcta
+        renderDept(foundDept); 
         
-        // Esperar un instante para hacer scroll hacia el producto
         setTimeout(() => {
             let itemRow = document.getElementById('row_' + foundIdx);
             if (itemRow) {
                 itemRow.scrollIntoView({ behavior: "smooth", block: "center" });
                 
-                // Efecto visual amarillo para ubicarlo fácil
                 let originalBg = itemRow.style.backgroundColor;
                 itemRow.style.backgroundColor = "#fffae6"; 
                 itemRow.style.border = "2px solid #ff9800";
                 
-                // Ubicar el cursor en la casilla de cantidad
                 let qtyInput = document.getElementById('qty_' + foundIdx);
                 if (qtyInput) qtyInput.focus();
                 
@@ -348,7 +395,7 @@ function findAndOpenProduct(barcode) {
             }
         }, 150);
     } else {
-        alert("El código escaneado (" + barcode + ") no coincide con ningún producto de tu hoja de Google Sheets.");
+        alert("El código escaneado (" + barcode + ") no coincide con ningún producto de tu base de datos.");
     }
 }
 
