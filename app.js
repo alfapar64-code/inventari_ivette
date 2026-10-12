@@ -3,7 +3,6 @@ const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSMpG3eag6FmM46
 let inventoryData = {}; 
 let savedData = JSON.parse(localStorage.getItem('inventario_ivette_data')) || {};
 
-// MIGRACIÓN: Si hay datos de la versión anterior (solo texto), los convertimos al formato con fecha
 for (let key in savedData) {
     if (typeof savedData[key] === 'string') {
         savedData[key] = { qty: savedData[key], expDate: '' };
@@ -30,6 +29,22 @@ async function init() {
 function parseCSV(text) {
     const lines = text.split('\n').filter(line => line.trim() !== '');
     const delimiter = text.includes(';') && !text.includes('DPTO.,') ? ';' : ',';
+    
+    // Mapeo automático de columnas
+    let headers = lines[0].split(delimiter).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+    let dptoIdx = -1, descIdx = -1, codeIdx = -1;
+    
+    for(let i=0; i<headers.length; i++) {
+        let h = headers[i];
+        if (h.includes('dpto') || h.includes('departamento')) dptoIdx = i;
+        else if (h.includes('descrip') || h.includes('rubro')) descIdx = i;
+        else if (h.includes('cod') || h.includes('cód') || h.includes('barra')) codeIdx = i;
+    }
+    
+    // Por si no hay encabezados, usamos las primeras columnas por defecto
+    if (dptoIdx === -1) dptoIdx = 0;
+    if (descIdx === -1) descIdx = 1;
+    
     let startIndex = (lines[0].toLowerCase().includes('dpto') || lines[0].toLowerCase().includes('descrip')) ? 1 : 0;
 
     for (let i = startIndex; i < lines.length; i++) {
@@ -44,9 +59,11 @@ function parseCSV(text) {
         }
         cols.push(current.trim());
 
-        if (cols.length >= 2) {
-            let dept = cols[0].replace(/^"|"$/g, '').trim().toUpperCase();
-            let originalName = cols.slice(1).join(delimiter).replace(/^"|"$/g, '').trim();
+        if (cols.length > Math.max(dptoIdx, descIdx)) {
+            let dept = cols[dptoIdx].replace(/^"|"$/g, '').trim().toUpperCase();
+            let originalName = cols[descIdx].replace(/^"|"$/g, '').trim();
+            // Extracción del código de barras si la columna existe
+            let barcode = (codeIdx !== -1 && codeIdx < cols.length) ? cols[codeIdx].replace(/^"|"$/g, '').trim() : '';
 
             if (dept === "" || originalName === "") continue;
 
@@ -55,12 +72,11 @@ function parseCSV(text) {
             let name = originalName.replace(prefixRegex, '');
 
             if (!inventoryData[dept]) inventoryData[dept] = [];
-            inventoryData[dept].push({ originalName: originalName, name: name });
+            inventoryData[dept].push({ originalName: originalName, name: name, barcode: barcode });
         }
     }
 }
 
-// Calcula los días restantes (Negativo = Vencido, 0 a 30 = Promoción)
 function getDaysRemaining(dateString) {
     if (!dateString) return null;
     const exp = new Date(dateString + 'T00:00:00'); 
@@ -117,7 +133,7 @@ window.renderDept = function(dept) {
         let escapedName = item.originalName.replace(/'/g, "\\'"); 
 
         html += `
-            <div class="item-row">
+            <div class="item-row" id="row_${idx}">
                 <div class="item-name">${item.name} <span id="badge_${idx}">${badgeHtml}</span></div>
                 <div class="item-inputs">
                     <div class="input-row">
@@ -143,7 +159,6 @@ window.renderDept = function(dept) {
     window.scrollTo(0,0);
 }
 
-// Evaluación matemática (Ej: 5 + 10)
 function evaluateMath(val) {
     if (!val) return '';
     try {
@@ -156,7 +171,6 @@ function evaluateMath(val) {
     return val;
 }
 
-// AUTOGUARDADO EN TIEMPO REAL
 window.handleItemChange = function(originalName, idx, isMath) {
     let qtyEl = document.getElementById('qty_' + idx);
     let dateEl = document.getElementById('date_' + idx);
@@ -167,7 +181,6 @@ window.handleItemChange = function(originalName, idx, isMath) {
     let qty = qtyEl.value.trim();
     let expDate = dateEl.value;
     
-    // Guardar en memoria permanentemente
     if (!qty && !expDate) {
         delete savedData[originalName];
     } else {
@@ -175,7 +188,6 @@ window.handleItemChange = function(originalName, idx, isMath) {
     }
     localStorage.setItem('inventario_ivette_data', JSON.stringify(savedData));
     
-    // Actualizar etiqueta visual al instante
     let days = getDaysRemaining(expDate);
     if (days !== null) {
         if (days < 0) badgeEl.innerHTML = `<span class="expired-badge">❌ Vencido (${Math.abs(days)}d)</span>`;
@@ -186,10 +198,8 @@ window.handleItemChange = function(originalName, idx, isMath) {
     }
 }
 
-// EXPORTACIÓN A CSV CON FECHA
 window.exportPromotions = function(dept = null) {
     let itemsToExport = [];
-    
     for (let d in inventoryData) {
         if (dept && d !== dept) continue; 
         
@@ -213,14 +223,11 @@ window.exportPromotions = function(dept = null) {
         return;
     }
     
-    // Ordenar desde el más vencido hasta el más lejano
     itemsToExport.sort((a, b) => a.days - b.days);
 
-    // Formatear la fecha actual de Argentina
     let now = new Date();
     let dateString = now.toLocaleDateString('es-AR') + ' a las ' + now.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
     
-    // Construir el archivo CSV con la fecha en la primera línea
     let csvContent = "\uFEFF"; 
     csvContent += `"Reporte generado el: ${dateString}"\n\n`; 
     csvContent += "Departamento;Rubro;Cantidad;Fecha de Vencimiento;Estado / Dias Restantes\n";
@@ -230,7 +237,6 @@ window.exportPromotions = function(dept = null) {
         csvContent += `${row.dept};"${row.name}";${row.qty};${row.expDate};${status}\n`;
     });
     
-    // Generar archivo descargable en formato CSV
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -256,6 +262,93 @@ window.clearAllData = function() {
         localStorage.removeItem('inventario_ivette_data');
         renderHome();
         alert("El inventario ha sido limpiado por completo.");
+    }
+}
+
+// ---- LOGICA DEL ESCANER DE CÓDIGO DE BARRAS ----
+let html5QrcodeScanner = null;
+
+document.getElementById('btn-scan').addEventListener('click', () => {
+    document.getElementById('reader-container').classList.remove('hidden');
+    
+    if (!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5Qrcode("reader");
+    }
+    
+    html5QrcodeScanner.start(
+        { facingMode: "environment" }, 
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText, decodedResult) => {
+            // Se encontró un código, apagar la cámara y buscar
+            html5QrcodeScanner.stop().then(() => {
+                document.getElementById('reader-container').classList.add('hidden');
+                findAndOpenProduct(decodedText);
+            });
+        },
+        (errorMessage) => { /* Ignorar errores de lectura en proceso */ }
+    ).catch(err => {
+        alert("Debes otorgar permisos de cámara para poder escanear.");
+        document.getElementById('reader-container').classList.add('hidden');
+    });
+});
+
+document.getElementById('btn-close-scanner').addEventListener('click', () => {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+            document.getElementById('reader-container').classList.add('hidden');
+        }).catch(err => {
+            document.getElementById('reader-container').classList.add('hidden');
+        });
+    } else {
+        document.getElementById('reader-container').classList.add('hidden');
+    }
+});
+
+function findAndOpenProduct(barcode) {
+    barcode = barcode.trim();
+    let found = null;
+    let foundDept = null;
+    let foundIdx = -1;
+
+    for (let dept in inventoryData) {
+        let items = inventoryData[dept];
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].barcode === barcode) {
+                found = items[i];
+                foundDept = dept;
+                foundIdx = i;
+                break;
+            }
+        }
+        if (found) break;
+    }
+
+    if (found) {
+        renderDept(foundDept); // Entrar a la categoría correcta
+        
+        // Esperar un instante para hacer scroll hacia el producto
+        setTimeout(() => {
+            let itemRow = document.getElementById('row_' + foundIdx);
+            if (itemRow) {
+                itemRow.scrollIntoView({ behavior: "smooth", block: "center" });
+                
+                // Efecto visual amarillo para ubicarlo fácil
+                let originalBg = itemRow.style.backgroundColor;
+                itemRow.style.backgroundColor = "#fffae6"; 
+                itemRow.style.border = "2px solid #ff9800";
+                
+                // Ubicar el cursor en la casilla de cantidad
+                let qtyInput = document.getElementById('qty_' + foundIdx);
+                if (qtyInput) qtyInput.focus();
+                
+                setTimeout(() => {
+                    itemRow.style.backgroundColor = originalBg;
+                    itemRow.style.border = "1px solid #ddd";
+                }, 3000);
+            }
+        }, 150);
+    } else {
+        alert("El código escaneado (" + barcode + ") no coincide con ningún producto de tu hoja de Google Sheets.");
     }
 }
 
