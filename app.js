@@ -93,9 +93,8 @@ function renderHome() {
     if (depts.length === 0) {
         html += '<div class="text-center">No se encontraron departamentos.</div>';
     } else {
-        // Nuevos botones de exportación general
-        html += '<button class="btn" style="background-color: #2e7d32; color: white; margin-bottom: 10px;" onclick="exportInventory()">📦 Exportar Inventario Contado (TODO)</button>';
-        html += '<button class="btn btn-info" onclick="exportPromotions()">📊 Extraer Promociones (TODO)</button>';
+        html += '<button class="btn" style="background-color: #2e7d32; color: white; margin-bottom: 10px;" onclick="exportInventory()">📦 Ver Resumen de Inventario (TODO)</button>';
+        html += '<button class="btn btn-info" onclick="exportPromotions()">📊 Ver Promociones y Vencidos (TODO)</button>';
         html += '<p style="margin:20px 0 15px 0; color:#555;">Seleccione un departamento:</p>';
         
         depts.forEach(dept => {
@@ -117,10 +116,9 @@ window.renderDept = function(dept) {
     const items = inventoryData[dept];
     let html = '<div class="container" id="dept-form">';
     
-    // Nuevos botones de exportación por departamento
-    html += '<button class="btn" style="background-color: #2e7d32; color: white; margin-bottom: 10px;" onclick="exportInventory(\'' + dept + '\')">📦 Exportar Inventario Contado (' + dept + ')</button>';
-    html += '<button class="btn btn-info" onclick="exportPromotions(\'' + dept + '\')">📄 Extraer Promociones (' + dept + ')</button>';
-    html += '<p style="margin:15px 0; color:#555; font-size:0.9rem;">Autoguardado activado. Los datos se guardan solos al escribir.</p>';
+    html += '<button class="btn" style="background-color: #2e7d32; color: white; margin-bottom: 10px;" onclick="exportInventory(\'' + dept + '\')">📦 Ver Resumen del Inventario (' + dept + ')</button>';
+    html += '<button class="btn btn-info" onclick="exportPromotions(\'' + dept + '\')">📄 Ver Promociones (' + dept + ')</button>';
+    html += '<p style="margin:15px 0; color:#555; font-size:0.9rem;">Autoguardado activado.</p>';
     
     items.forEach((item, idx) => {
         let saved = savedData[item.originalName] || { qty: '', expDate: '' };
@@ -153,7 +151,7 @@ window.renderDept = function(dept) {
         `;
     });
 
-    html += '<button class="btn btn-primary" onclick="renderHome()">⬅ Volver al inicio (Guardado Automático)</button>';
+    html += '<button class="btn btn-primary" onclick="renderHome()">⬅ Volver al inicio</button>';
     html += '<button class="btn btn-danger" onclick="clearDept(\'' + dept + '\')">Borrar este Dpto e iniciar de cero</button>';
     html += '</div>';
 
@@ -200,6 +198,81 @@ window.handleItemChange = function(originalName, idx, isMath) {
     }
 }
 
+// ---- LOGICA DE VISUALIZACIÓN EN PANTALLA (NUEVO) ----
+window.currentCsvContent = "";
+window.currentCsvFileName = "";
+
+window.showReportModal = function(title, items, csvContent, fileName) {
+    window.currentCsvContent = csvContent;
+    window.currentCsvFileName = fileName;
+
+    let modal = document.createElement('div');
+    modal.id = 'report-modal';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = '#f5f5f5';
+    modal.style.zIndex = '3000';
+    modal.style.overflowY = 'auto';
+    modal.style.padding = '15px';
+    modal.style.boxSizing = 'border-box';
+    modal.style.paddingBottom = '80px';
+
+    let html = `
+        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin:0; font-size: 1.1rem; color: #2e7d32;">${title}</h2>
+            <button onclick="document.body.removeChild(document.getElementById('report-modal'))" 
+                    style="background:#f44336; color:white; border:none; padding:10px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                X Cerrar
+            </button>
+        </div>
+        
+        <p style="color:#666; font-size:0.9rem; margin-bottom:15px; text-align:center;">Información lista para transcribir a tu PC</p>
+        
+        <div style="background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 10px;">
+    `;
+
+    items.forEach(item => {
+        // Ignoramos los productos que están vacíos en el resumen general
+        if (!item.qty && !item.expDate) return; 
+
+        html += `
+            <div style="border-bottom: 1px solid #eee; padding: 15px 0;">
+                <div style="font-weight:bold; font-size: 1.15rem; margin-bottom: 10px; color: #222;">${item.name}</div>
+                <div style="display:flex; justify-content: space-between; font-size: 1.05rem;">
+                    <span style="color: #555;">Cant: <strong style="color:#000; font-size:1.2rem;">${item.qty || '-'}</strong></span>
+                    <span style="color: #555;">Vence: <strong style="color:#000;">${item.expDate || '-'}</strong></span>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    
+    html += `
+        <button onclick="triggerDownload()" 
+                style="display:block; width:100%; background:#2196F3; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; margin-top:20px; font-size:1.1rem;">
+            📥 Descargar este archivo (Opcional)
+        </button>
+    `;
+
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+}
+
+window.triggerDownload = function() {
+    const blob = new Blob([window.currentCsvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", window.currentCsvFileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 // EXPORTACIÓN DEL INVENTARIO GENERAL
 window.exportInventory = function(dept = null) {
     let itemsToExport = [];
@@ -209,21 +282,20 @@ window.exportInventory = function(dept = null) {
         
         inventoryData[d].forEach(item => {
             let data = savedData[item.originalName];
-            let qty = (data && data.qty) ? data.qty : '';
-            let expDate = (data && data.expDate) ? data.expDate : '';
-            
-            itemsToExport.push({
-                dept: d, 
-                barcode: item.barcode || '',
-                name: item.name, 
-                qty: qty, 
-                expDate: expDate
-            });
+            if (data && (data.qty || data.expDate)) {
+                itemsToExport.push({
+                    dept: d, 
+                    barcode: item.barcode || '',
+                    name: item.name, 
+                    qty: data.qty, 
+                    expDate: data.expDate
+                });
+            }
         });
     }
     
     if (itemsToExport.length === 0) {
-        alert("No hay productos cargados en el sistema para exportar.");
+        alert("No hay productos contados para mostrar.");
         return;
     }
 
@@ -238,17 +310,15 @@ window.exportInventory = function(dept = null) {
         csvContent += `${row.dept};"${row.barcode}";"${row.name}";${row.qty};${row.expDate}\n`;
     });
     
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", dept ? `Inventario_Realizado_${dept}.csv` : "Inventario_Realizado_Completo.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    showReportModal(
+        dept ? `Inventario: ${dept}` : "Inventario Completo", 
+        itemsToExport, 
+        csvContent, 
+        dept ? `Inventario_Realizado_${dept}.csv` : "Inventario_Realizado_Completo.csv"
+    );
 }
 
-// EXPORTACIÓN A CSV CON FECHA (PROMOCIONES)
+// EXPORTACIÓN DE PROMOCIONES
 window.exportPromotions = function(dept = null) {
     let itemsToExport = [];
     for (let d in inventoryData) {
@@ -288,14 +358,12 @@ window.exportPromotions = function(dept = null) {
         csvContent += `${row.dept};"${row.name}";${row.qty};${row.expDate};${status}\n`;
     });
     
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", dept ? `Promociones_${dept}.csv` : "Promociones_Inventario_Completo.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    showReportModal(
+        dept ? `Promociones: ${dept}` : "Todas las Promociones", 
+        itemsToExport, 
+        csvContent, 
+        dept ? `Promociones_${dept}.csv` : "Promociones_Inventario_Completo.csv"
+    );
 }
 
 window.clearDept = function(dept) {
@@ -335,7 +403,7 @@ document.getElementById('btn-scan').addEventListener('click', () => {
                 findAndOpenProduct(decodedText);
             });
         },
-        (errorMessage) => { /* Ignorar errores de lectura en proceso */ }
+        (errorMessage) => { }
     ).catch(err => {
         alert("Debes otorgar permisos de cámara para poder escanear.");
         document.getElementById('reader-container').classList.add('hidden');
