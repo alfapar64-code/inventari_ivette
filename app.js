@@ -380,14 +380,14 @@ window.clearAllData = function() {
     }
 }
 
-// ---- LÓGICA DEL ESCÁNER CORREGIDA (ANDROID + FORMATOS AMPLIADOS) ----
+// ---- LÓGICA DEL ESCÁNER Y BÚSQUEDA MANUAL ----
 let html5QrcodeScanner = null;
 
 document.getElementById('btn-scan').addEventListener('click', () => {
     document.getElementById('reader-container').classList.remove('hidden');
+    document.getElementById('manual-barcode-input').value = ""; // Limpiar búsqueda anterior
     
     if (!html5QrcodeScanner) {
-        // Obligamos a la librería a reconocer EAN-13, EAN-8 y los formatos UPC (súper e hipermercados)
         html5QrcodeScanner = new Html5Qrcode("reader", {
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13,
@@ -401,10 +401,7 @@ document.getElementById('btn-scan').addEventListener('click', () => {
         });
     }
     
-    // 1. Revertimos a la configuración simple de la cámara para no bloquear Android
     const cameraConfig = { facingMode: "environment" };
-    
-    // 2. Hacemos el recuadro de lectura mucho más ancho para que capte todo el código EAN-13
     const config = { 
         fps: 10, 
         qrbox: function(viewfinderWidth, viewfinderHeight) {
@@ -417,29 +414,58 @@ document.getElementById('btn-scan').addEventListener('click', () => {
         cameraConfig, 
         config,
         (decodedText, decodedResult) => {
-            html5QrcodeScanner.stop().then(() => {
-                document.getElementById('reader-container').classList.add('hidden');
-                findAndOpenProduct(decodedText);
-            });
+            detenerYBuscar(decodedText);
         },
-        (errorMessage) => { /* Silenciar errores normales de enfoque */ }
+        (errorMessage) => { }
     ).catch(err => {
-        alert("Error de cámara al iniciar. Por favor verifica los permisos en tu navegador.");
-        document.getElementById('reader-container').classList.add('hidden');
+        // Si hay error (como no dar permisos), el contenedor sigue abierto para buscar manualmente
+        console.warn("Error iniciando cámara. Se puede usar búsqueda manual.");
     });
 });
 
 document.getElementById('btn-close-scanner').addEventListener('click', () => {
-    if (html5QrcodeScanner) {
+    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
         html5QrcodeScanner.stop().then(() => {
             document.getElementById('reader-container').classList.add('hidden');
-        }).catch(err => {
+        }).catch(() => {
             document.getElementById('reader-container').classList.add('hidden');
         });
     } else {
         document.getElementById('reader-container').classList.add('hidden');
     }
 });
+
+// NUEVO: Funciones para la búsqueda manual
+document.getElementById('btn-manual-search').addEventListener('click', () => {
+    let codigoManual = document.getElementById('manual-barcode-input').value.trim();
+    if (codigoManual === "") {
+        alert("Por favor ingresa un número de código de barras.");
+        return;
+    }
+    detenerYBuscar(codigoManual);
+});
+
+// Permitir buscar apretando "Enter" en el teclado del celular
+document.getElementById('manual-barcode-input').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') {
+        document.getElementById('btn-manual-search').click();
+    }
+});
+
+function detenerYBuscar(codigo) {
+    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+        html5QrcodeScanner.stop().then(() => {
+            document.getElementById('reader-container').classList.add('hidden');
+            findAndOpenProduct(codigo);
+        }).catch(() => {
+            document.getElementById('reader-container').classList.add('hidden');
+            findAndOpenProduct(codigo);
+        });
+    } else {
+        document.getElementById('reader-container').classList.add('hidden');
+        findAndOpenProduct(codigo);
+    }
+}
 
 function findAndOpenProduct(barcode) {
     barcode = barcode.trim();
@@ -482,7 +508,7 @@ function findAndOpenProduct(barcode) {
             }
         }, 150);
     } else {
-        alert("El código escaneado (" + barcode + ") no coincide con ningún producto de tu base de datos.");
+        alert("El código (" + barcode + ") no coincide con ningún producto de tu base de datos.");
     }
 }
 
