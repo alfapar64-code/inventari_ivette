@@ -380,29 +380,37 @@ window.clearAllData = function() {
     }
 }
 
-// ---- LÓGICA DEL ESCÁNER OPTIMIZADA PARA iOS (iPHONE) ----
+// ---- LÓGICA DEL ESCÁNER CORREGIDA (ANDROID + FORMATOS AMPLIADOS) ----
 let html5QrcodeScanner = null;
 
 document.getElementById('btn-scan').addEventListener('click', () => {
     document.getElementById('reader-container').classList.remove('hidden');
     
     if (!html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("reader");
+        // Obligamos a la librería a reconocer EAN-13, EAN-8 y los formatos UPC (súper e hipermercados)
+        html5QrcodeScanner = new Html5Qrcode("reader", {
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.ITF
+            ]
+        });
     }
     
-    // Configuraciones avanzadas para ayudar al enfoque en iPhone
+    // 1. Revertimos a la configuración simple de la cámara para no bloquear Android
+    const cameraConfig = { facingMode: "environment" };
+    
+    // 2. Hacemos el recuadro de lectura mucho más ancho para que capte todo el código EAN-13
     const config = { 
-        fps: 15, 
+        fps: 10, 
         qrbox: function(viewfinderWidth, viewfinderHeight) {
-            let width = Math.min(250, viewfinderWidth * 0.8);
+            let width = Math.min(320, viewfinderWidth * 0.95);
             return { width: width, height: 150 };
-        },
-        aspectRatio: 1.0 
-    };
-
-    const cameraConfig = { 
-        facingMode: "environment",
-        advanced: [{ focusMode: "continuous" }] 
+        }
     };
     
     html5QrcodeScanner.start(
@@ -414,9 +422,9 @@ document.getElementById('btn-scan').addEventListener('click', () => {
                 findAndOpenProduct(decodedText);
             });
         },
-        (errorMessage) => { }
+        (errorMessage) => { /* Silenciar errores normales de enfoque */ }
     ).catch(err => {
-        alert("Error de cámara. Asegúrate de dar permisos a Safari/Chrome en la configuración del iPhone.");
+        alert("Error de cámara al iniciar. Por favor verifica los permisos en tu navegador.");
         document.getElementById('reader-container').classList.add('hidden');
     });
 });
