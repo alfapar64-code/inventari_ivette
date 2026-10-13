@@ -198,7 +198,6 @@ window.handleItemChange = function(originalName, idx, isMath) {
     }
 }
 
-// ---- LOGICA DE VISUALIZACIÓN EN PANTALLA (NUEVO) ----
 window.currentCsvContent = "";
 window.currentCsvFileName = "";
 
@@ -235,7 +234,6 @@ window.showReportModal = function(title, items, csvContent, fileName) {
     `;
 
     items.forEach(item => {
-        // Ignoramos los productos que están vacíos en el resumen general
         if (!item.qty && !item.expDate) return; 
 
         html += `
@@ -273,7 +271,6 @@ window.triggerDownload = function() {
     document.body.removeChild(link);
 }
 
-// EXPORTACIÓN DEL INVENTARIO GENERAL
 window.exportInventory = function(dept = null) {
     let itemsToExport = [];
     
@@ -318,7 +315,6 @@ window.exportInventory = function(dept = null) {
     );
 }
 
-// EXPORTACIÓN DE PROMOCIONES
 window.exportPromotions = function(dept = null) {
     let itemsToExport = [];
     for (let d in inventoryData) {
@@ -384,7 +380,7 @@ window.clearAllData = function() {
     }
 }
 
-// ---- LOGICA DEL ESCANER DE CÓDIGO DE BARRAS ----
+// ---- LÓGICA DEL ESCÁNER OPTIMIZADA PARA iOS (iPHONE) ----
 let html5QrcodeScanner = null;
 
 document.getElementById('btn-scan').addEventListener('click', () => {
@@ -394,9 +390,24 @@ document.getElementById('btn-scan').addEventListener('click', () => {
         html5QrcodeScanner = new Html5Qrcode("reader");
     }
     
+    // Configuraciones avanzadas para ayudar al enfoque en iPhone
+    const config = { 
+        fps: 15, 
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+            let width = Math.min(250, viewfinderWidth * 0.8);
+            return { width: width, height: 150 };
+        },
+        aspectRatio: 1.0 
+    };
+
+    const cameraConfig = { 
+        facingMode: "environment",
+        advanced: [{ focusMode: "continuous" }] 
+    };
+    
     html5QrcodeScanner.start(
-        { facingMode: "environment" }, 
-        { fps: 10, qrbox: { width: 250, height: 150 } },
+        cameraConfig, 
+        config,
         (decodedText, decodedResult) => {
             html5QrcodeScanner.stop().then(() => {
                 document.getElementById('reader-container').classList.add('hidden');
@@ -405,7 +416,7 @@ document.getElementById('btn-scan').addEventListener('click', () => {
         },
         (errorMessage) => { }
     ).catch(err => {
-        alert("Debes otorgar permisos de cámara para poder escanear.");
+        alert("Error de cámara. Asegúrate de dar permisos a Safari/Chrome en la configuración del iPhone.");
         document.getElementById('reader-container').classList.add('hidden');
     });
 });
