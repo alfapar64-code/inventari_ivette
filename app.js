@@ -198,6 +198,7 @@ window.handleItemChange = function(originalName, idx, isMath) {
     }
 }
 
+// ---- VENTANA DE REPORTES EN PANTALLA ----
 window.currentCsvContent = "";
 window.currentCsvFileName = "";
 
@@ -227,15 +228,12 @@ window.showReportModal = function(title, items, csvContent, fileName) {
                 X Cerrar
             </button>
         </div>
-        
         <p style="color:#666; font-size:0.9rem; margin-bottom:15px; text-align:center;">Información lista para transcribir a tu PC</p>
-        
         <div style="background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 10px;">
     `;
 
     items.forEach(item => {
         if (!item.qty && !item.expDate) return; 
-
         html += `
             <div style="border-bottom: 1px solid #eee; padding: 15px 0;">
                 <div style="font-weight:bold; font-size: 1.15rem; margin-bottom: 10px; color: #222;">${item.name}</div>
@@ -247,9 +245,7 @@ window.showReportModal = function(title, items, csvContent, fileName) {
         `;
     });
 
-    html += `</div>`;
-    
-    html += `
+    html += `</div>
         <button onclick="triggerDownload()" 
                 style="display:block; width:100%; background:#2196F3; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; margin-top:20px; font-size:1.1rem;">
             📥 Descargar este archivo (Opcional)
@@ -273,93 +269,51 @@ window.triggerDownload = function() {
 
 window.exportInventory = function(dept = null) {
     let itemsToExport = [];
-    
     for (let d in inventoryData) {
         if (dept && d !== dept) continue; 
-        
         inventoryData[d].forEach(item => {
             let data = savedData[item.originalName];
             if (data && (data.qty || data.expDate)) {
-                itemsToExport.push({
-                    dept: d, 
-                    barcode: item.barcode || '',
-                    name: item.name, 
-                    qty: data.qty, 
-                    expDate: data.expDate
-                });
+                itemsToExport.push({ dept: d, barcode: item.barcode || '', name: item.name, qty: data.qty, expDate: data.expDate });
             }
         });
     }
-    
-    if (itemsToExport.length === 0) {
-        alert("No hay productos contados para mostrar.");
-        return;
-    }
-
+    if (itemsToExport.length === 0) { alert("No hay productos contados para mostrar."); return; }
     let now = new Date();
     let dateString = now.toLocaleDateString('es-AR') + ' a las ' + now.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
-    
     let csvContent = "\uFEFF"; 
     csvContent += `"Inventario exportado el: ${dateString}"\n\n`; 
     csvContent += "Departamento;Codigo de Barras;Rubro;Cantidad Contada;Fecha de Vencimiento\n";
-    
-    itemsToExport.forEach(row => {
-        csvContent += `${row.dept};"${row.barcode}";"${row.name}";${row.qty};${row.expDate}\n`;
-    });
-    
-    showReportModal(
-        dept ? `Inventario: ${dept}` : "Inventario Completo", 
-        itemsToExport, 
-        csvContent, 
-        dept ? `Inventario_Realizado_${dept}.csv` : "Inventario_Realizado_Completo.csv"
-    );
+    itemsToExport.forEach(row => { csvContent += `${row.dept};"${row.barcode}";"${row.name}";${row.qty};${row.expDate}\n`; });
+    showReportModal(dept ? `Inventario: ${dept}` : "Inventario Completo", itemsToExport, csvContent, dept ? `Inventario_Realizado_${dept}.csv` : "Inventario_Realizado_Completo.csv");
 }
 
 window.exportPromotions = function(dept = null) {
     let itemsToExport = [];
     for (let d in inventoryData) {
         if (dept && d !== dept) continue; 
-        
         inventoryData[d].forEach(item => {
             let data = savedData[item.originalName];
             if (data && data.expDate) {
                 let days = getDaysRemaining(data.expDate);
                 if (days !== null && days <= 30) {
-                    itemsToExport.push({
-                        dept: d, name: item.name, qty: data.qty || '0', 
-                        expDate: data.expDate, days: days
-                    });
+                    itemsToExport.push({ dept: d, name: item.name, qty: data.qty || '0', expDate: data.expDate, days: days });
                 }
             }
         });
     }
-    
-    if (itemsToExport.length === 0) {
-        let msg = dept ? `No hay productos en promoción o vencidos registrados en ${dept}.` : "No hay productos en promoción o vencidos en todo el inventario.";
-        alert(msg);
-        return;
-    }
-    
+    if (itemsToExport.length === 0) { alert("No hay productos en promoción o vencidos."); return; }
     itemsToExport.sort((a, b) => a.days - b.days);
-
     let now = new Date();
     let dateString = now.toLocaleDateString('es-AR') + ' a las ' + now.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
-    
     let csvContent = "\uFEFF"; 
     csvContent += `"Reporte generado el: ${dateString}"\n\n`; 
     csvContent += "Departamento;Rubro;Cantidad;Fecha de Vencimiento;Estado / Dias Restantes\n";
-    
     itemsToExport.forEach(row => {
         let status = row.days < 0 ? `Vencido hace ${Math.abs(row.days)} dias` : `${row.days} dias`;
         csvContent += `${row.dept};"${row.name}";${row.qty};${row.expDate};${status}\n`;
     });
-    
-    showReportModal(
-        dept ? `Promociones: ${dept}` : "Todas las Promociones", 
-        itemsToExport, 
-        csvContent, 
-        dept ? `Promociones_${dept}.csv` : "Promociones_Inventario_Completo.csv"
-    );
+    showReportModal(dept ? `Promociones: ${dept}` : "Todas las Promociones", itemsToExport, csvContent, dept ? `Promociones_${dept}.csv` : "Promociones_Inventario_Completo.csv");
 }
 
 window.clearDept = function(dept) {
@@ -372,7 +326,7 @@ window.clearDept = function(dept) {
 }
 
 window.clearAllData = function() {
-    if(confirm("¡ATENCIÓN EXTREMA! ¿Estás seguro de borrar TODO EL INVENTARIO? \nPerderás todas las cantidades y fechas guardadas.")) {
+    if(confirm("¡ATENCIÓN EXTREMA! ¿Estás seguro de borrar TODO EL INVENTARIO?")) {
         savedData = {};
         localStorage.removeItem('inventario_ivette_data');
         renderHome();
@@ -380,136 +334,179 @@ window.clearAllData = function() {
     }
 }
 
-// ---- LÓGICA DEL ESCÁNER Y BÚSQUEDA MANUAL ----
+// ---- LÓGICA DEL ESCÁNER Y BUSCADORES MANUALES ----
 let html5QrcodeScanner = null;
+const readerContainer = document.getElementById('reader-container');
+const manualBarcode = document.getElementById('manual-barcode-input');
+const manualName = document.getElementById('manual-name-input');
+const searchResults = document.getElementById('search-results');
 
 document.getElementById('btn-scan').addEventListener('click', () => {
-    document.getElementById('reader-container').classList.remove('hidden');
-    document.getElementById('manual-barcode-input').value = ""; // Limpiar búsqueda anterior
+    readerContainer.classList.remove('hidden');
+    manualBarcode.value = ""; 
+    manualName.value = "";
+    searchResults.style.display = 'none';
     
     if (!html5QrcodeScanner) {
         html5QrcodeScanner = new Html5Qrcode("reader", {
             formatsToSupport: [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
                 Html5QrcodeSupportedFormats.ITF
             ]
         });
     }
     
     const cameraConfig = { facingMode: "environment" };
-    const config = { 
-        fps: 10, 
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-            let width = Math.min(320, viewfinderWidth * 0.95);
-            return { width: width, height: 150 };
-        }
-    };
+    const config = { fps: 10, qrbox: function(vw, vh) { return { width: Math.min(320, vw * 0.95), height: 150 }; } };
     
-    html5QrcodeScanner.start(
-        cameraConfig, 
-        config,
-        (decodedText, decodedResult) => {
-            detenerYBuscar(decodedText);
-        },
-        (errorMessage) => { }
-    ).catch(err => {
-        // Si hay error (como no dar permisos), el contenedor sigue abierto para buscar manualmente
-        console.warn("Error iniciando cámara. Se puede usar búsqueda manual.");
-    });
+    html5QrcodeScanner.start(cameraConfig, config,
+        (decodedText) => { detenerYEjecutar(() => buscarCodigo(decodedText)); },
+        () => { }
+    ).catch(err => { console.warn("Modo manual activo."); });
 });
 
-document.getElementById('btn-close-scanner').addEventListener('click', () => {
+document.getElementById('btn-close-scanner').addEventListener('click', () => detenerYEjecutar(() => {}));
+
+function detenerYEjecutar(callback) {
     if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
         html5QrcodeScanner.stop().then(() => {
-            document.getElementById('reader-container').classList.add('hidden');
+            readerContainer.classList.add('hidden');
+            callback();
         }).catch(() => {
-            document.getElementById('reader-container').classList.add('hidden');
+            readerContainer.classList.add('hidden');
+            callback();
         });
     } else {
-        document.getElementById('reader-container').classList.add('hidden');
-    }
-});
-
-// NUEVO: Funciones para la búsqueda manual
-document.getElementById('btn-manual-search').addEventListener('click', () => {
-    let codigoManual = document.getElementById('manual-barcode-input').value.trim();
-    if (codigoManual === "") {
-        alert("Por favor ingresa un número de código de barras.");
-        return;
-    }
-    detenerYBuscar(codigoManual);
-});
-
-// Permitir buscar apretando "Enter" en el teclado del celular
-document.getElementById('manual-barcode-input').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') {
-        document.getElementById('btn-manual-search').click();
-    }
-});
-
-function detenerYBuscar(codigo) {
-    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-        html5QrcodeScanner.stop().then(() => {
-            document.getElementById('reader-container').classList.add('hidden');
-            findAndOpenProduct(codigo);
-        }).catch(() => {
-            document.getElementById('reader-container').classList.add('hidden');
-            findAndOpenProduct(codigo);
-        });
-    } else {
-        document.getElementById('reader-container').classList.add('hidden');
-        findAndOpenProduct(codigo);
+        readerContainer.classList.add('hidden');
+        callback();
     }
 }
 
-function findAndOpenProduct(barcode) {
+// 1. BUSCADOR POR CÓDIGO MANUAL
+document.getElementById('btn-manual-search').addEventListener('click', () => {
+    let codigo = manualBarcode.value.trim();
+    if (codigo) detenerYEjecutar(() => buscarCodigo(codigo));
+});
+manualBarcode.addEventListener('keypress', (e) => { if (e.key === 'Enter') document.getElementById('btn-manual-search').click(); });
+
+function buscarCodigo(barcode) {
     barcode = barcode.trim();
-    let found = null;
     let foundDept = null;
     let foundIdx = -1;
 
     for (let dept in inventoryData) {
-        let items = inventoryData[dept];
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].barcode === barcode) {
-                found = items[i];
-                foundDept = dept;
-                foundIdx = i;
-                break;
+        for (let i = 0; i < inventoryData[dept].length; i++) {
+            if (inventoryData[dept][i].barcode === barcode) {
+                foundDept = dept; foundIdx = i; break;
             }
         }
-        if (found) break;
+        if (foundDept) break;
+    }
+    if (foundDept) openProductByIndex(foundDept, foundIdx);
+    else alert("El código (" + barcode + ") no coincide con ningún producto.");
+}
+
+// 2. BUSCADOR POR NOMBRE (TEXTO Y VOZ)
+const btnDictate = document.getElementById('btn-dictate');
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-AR'; // Español de Argentina
+    recognition.interimResults = false;
+
+    btnDictate.addEventListener('click', () => {
+        try {
+            recognition.start();
+            manualName.placeholder = "Escuchando voz...";
+            btnDictate.style.backgroundColor = "#f44336"; 
+        } catch(e) {}
+    });
+
+    recognition.onresult = (event) => {
+        manualName.value = event.results[0][0].transcript;
+        btnDictate.style.backgroundColor = "#2196F3";
+        manualName.placeholder = "Escribe o dicta el nombre...";
+        document.getElementById('btn-name-search').click(); // Auto-buscar al terminar de hablar
+    };
+
+    recognition.onerror = () => {
+        btnDictate.style.backgroundColor = "#2196F3";
+        manualName.placeholder = "Escribe o dicta el nombre...";
+    };
+    recognition.onend = () => {
+        btnDictate.style.backgroundColor = "#2196F3";
+        manualName.placeholder = "Escribe o dicta el nombre...";
+    };
+} else {
+    btnDictate.style.display = 'none'; // Ocultar si el navegador no soporta micrófono web
+}
+
+document.getElementById('btn-name-search').addEventListener('click', () => {
+    let query = manualName.value.trim().toLowerCase();
+    if (query === "") return;
+    
+    searchResults.innerHTML = '';
+    let matches = [];
+
+    for (let dept in inventoryData) {
+        let items = inventoryData[dept];
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].name.toLowerCase().includes(query)) {
+                matches.push({ dept: dept, name: items[i].name, index: i });
+            }
+        }
     }
 
-    if (found) {
-        renderDept(foundDept); 
-        
-        setTimeout(() => {
-            let itemRow = document.getElementById('row_' + foundIdx);
-            if (itemRow) {
-                itemRow.scrollIntoView({ behavior: "smooth", block: "center" });
-                
-                let originalBg = itemRow.style.backgroundColor;
-                itemRow.style.backgroundColor = "#fffae6"; 
-                itemRow.style.border = "2px solid #ff9800";
-                
-                let qtyInput = document.getElementById('qty_' + foundIdx);
-                if (qtyInput) qtyInput.focus();
-                
-                setTimeout(() => {
-                    itemRow.style.backgroundColor = originalBg;
-                    itemRow.style.border = "1px solid #ddd";
-                }, 3000);
-            }
-        }, 150);
+    if (matches.length === 0) {
+        searchResults.style.display = 'none';
+        alert("No se encontró ningún producto que contenga: " + query);
+    } else if (matches.length === 1) {
+        // Si hay un solo resultado exacto, ir directo a él
+        searchResults.style.display = 'none';
+        detenerYEjecutar(() => openProductByIndex(matches[0].dept, matches[0].index));
     } else {
-        alert("El código (" + barcode + ") no coincide con ningún producto de tu base de datos.");
+        // Mostrar lista de resultados si hay múltiples coincidencias
+        searchResults.style.display = 'flex';
+        matches.forEach(match => {
+            let btn = document.createElement('button');
+            btn.innerHTML = `<b style="color:#2e7d32;">[${match.dept}]</b> ${match.name}`;
+            btn.style.padding = "12px";
+            btn.style.border = "1px solid #ccc";
+            btn.style.borderRadius = "4px";
+            btn.style.background = "#fafafa";
+            btn.style.textAlign = "left";
+            btn.style.fontSize = "1rem";
+            btn.style.cursor = "pointer";
+            btn.onclick = () => {
+                searchResults.style.display = 'none';
+                detenerYEjecutar(() => openProductByIndex(match.dept, match.index));
+            };
+            searchResults.appendChild(btn);
+        });
     }
+});
+
+manualName.addEventListener('keypress', (e) => { if (e.key === 'Enter') document.getElementById('btn-name-search').click(); });
+
+function openProductByIndex(foundDept, foundIdx) {
+    renderDept(foundDept); 
+    setTimeout(() => {
+        let itemRow = document.getElementById('row_' + foundIdx);
+        if (itemRow) {
+            itemRow.scrollIntoView({ behavior: "smooth", block: "center" });
+            let originalBg = itemRow.style.backgroundColor;
+            itemRow.style.backgroundColor = "#fffae6"; 
+            itemRow.style.border = "2px solid #ff9800";
+            let qtyInput = document.getElementById('qty_' + foundIdx);
+            if (qtyInput) qtyInput.focus();
+            setTimeout(() => {
+                itemRow.style.backgroundColor = originalBg;
+                itemRow.style.border = "1px solid #ddd";
+            }, 3000);
+        }
+    }, 150);
 }
 
 btnBack.addEventListener('click', () => renderHome());
