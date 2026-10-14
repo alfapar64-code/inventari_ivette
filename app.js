@@ -40,8 +40,10 @@ function parseCSV(text) {
         else if (h.includes('cod') || h.includes('cód') || h.includes('barra')) codeIdx = i;
     }
     
-    if (dptoIdx === -1) dptoIdx = 0;
-    if (descIdx === -1) descIdx = 1;
+    // Ajuste preciso a la estructura de tu imagen
+    if (dptoIdx === -1) dptoIdx = 1; // Columna B
+    if (descIdx === -1) descIdx = 2; // Columna C
+    if (codeIdx === -1) codeIdx = 0; // Columna A
     
     let startIndex = (lines[0].toLowerCase().includes('dpto') || lines[0].toLowerCase().includes('descrip')) ? 1 : 0;
 
@@ -339,13 +341,11 @@ let html5QrcodeScanner = null;
 const readerContainer = document.getElementById('reader-container');
 const manualBarcode = document.getElementById('manual-barcode-input');
 const manualName = document.getElementById('manual-name-input');
-const searchResults = document.getElementById('search-results');
 
 document.getElementById('btn-scan').addEventListener('click', () => {
     readerContainer.classList.remove('hidden');
     manualBarcode.value = ""; 
     manualName.value = "";
-    searchResults.style.display = 'none';
     
     if (!html5QrcodeScanner) {
         html5QrcodeScanner = new Html5Qrcode("reader", {
@@ -428,7 +428,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         manualName.value = event.results[0][0].transcript;
         btnDictate.style.backgroundColor = "#2196F3";
         manualName.placeholder = "Escribe o dicta el nombre...";
-        document.getElementById('btn-name-search').click(); // Auto-buscar al terminar de hablar
+        document.getElementById('btn-name-search').click(); // Auto-buscar
     };
 
     recognition.onerror = () => {
@@ -440,55 +440,83 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         manualName.placeholder = "Escribe o dicta el nombre...";
     };
 } else {
-    btnDictate.style.display = 'none'; // Ocultar si el navegador no soporta micrófono web
+    btnDictate.style.display = 'none';
 }
 
+// Búsqueda inteligente por nombre
 document.getElementById('btn-name-search').addEventListener('click', () => {
     let query = manualName.value.trim().toLowerCase();
     if (query === "") return;
     
-    searchResults.innerHTML = '';
     let matches = [];
-
     for (let dept in inventoryData) {
         let items = inventoryData[dept];
         for (let i = 0; i < items.length; i++) {
-            if (items[i].name.toLowerCase().includes(query)) {
+            if (items[i].name.toLowerCase().includes(query) || items[i].originalName.toLowerCase().includes(query)) {
                 matches.push({ dept: dept, name: items[i].name, index: i });
             }
         }
     }
 
     if (matches.length === 0) {
-        searchResults.style.display = 'none';
-        alert("No se encontró ningún producto que contenga: " + query);
+        alert("No se encontró ningún producto que contenga la palabra: " + query);
     } else if (matches.length === 1) {
-        // Si hay un solo resultado exacto, ir directo a él
-        searchResults.style.display = 'none';
+        // Solo un resultado, ir directo
         detenerYEjecutar(() => openProductByIndex(matches[0].dept, matches[0].index));
     } else {
-        // Mostrar lista de resultados si hay múltiples coincidencias
-        searchResults.style.display = 'flex';
-        matches.forEach(match => {
-            let btn = document.createElement('button');
-            btn.innerHTML = `<b style="color:#2e7d32;">[${match.dept}]</b> ${match.name}`;
-            btn.style.padding = "12px";
-            btn.style.border = "1px solid #ccc";
-            btn.style.borderRadius = "4px";
-            btn.style.background = "#fafafa";
-            btn.style.textAlign = "left";
-            btn.style.fontSize = "1rem";
-            btn.style.cursor = "pointer";
-            btn.onclick = () => {
-                searchResults.style.display = 'none';
-                detenerYEjecutar(() => openProductByIndex(match.dept, match.index));
-            };
-            searchResults.appendChild(btn);
-        });
+        // Múltiples resultados -> Cerrar escáner y abrir pantalla completa
+        detenerYEjecutar(() => showSearchResultsModal(query, matches));
     }
 });
-
 manualName.addEventListener('keypress', (e) => { if (e.key === 'Enter') document.getElementById('btn-name-search').click(); });
+
+// PANTALLA COMPLETA DE MÚLTIPLES RESULTADOS (NUEVO)
+function showSearchResultsModal(query, matches) {
+    let modal = document.createElement('div');
+    modal.id = 'search-results-modal';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = '#f5f5f5';
+    modal.style.zIndex = '3000';
+    modal.style.overflowY = 'auto';
+    modal.style.padding = '15px';
+    modal.style.boxSizing = 'border-box';
+
+    let html = `
+        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin:0; font-size: 1.1rem; color: #2e7d32;">Resultados: "${query}"</h2>
+            <button onclick="document.body.removeChild(document.getElementById('search-results-modal'))" 
+                    style="background:#f44336; color:white; border:none; padding:10px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                X Cancelar
+            </button>
+        </div>
+        <p style="color:#666; font-size:1rem; margin-bottom:15px; text-align:center;">Se encontraron ${matches.length} opciones. Toca la correcta:</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 30px;">
+    `;
+
+    matches.forEach(match => {
+        let safeDept = match.dept.replace(/'/g, "\\'");
+        html += `
+            <button onclick="selectProductFromSearch('${safeDept}', ${match.index})" 
+                    style="background: white; border: 1px solid #ccc; padding: 15px; border-radius: 8px; font-size: 1.1rem; text-align: left; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <b style="color:#2e7d32;">[${match.dept}]</b> ${match.name}
+            </button>
+        `;
+    });
+
+    html += `</div>`;
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+}
+
+window.selectProductFromSearch = function(dept, idx) {
+    let modal = document.getElementById('search-results-modal');
+    if (modal) document.body.removeChild(modal);
+    openProductByIndex(dept, idx);
+}
 
 function openProductByIndex(foundDept, foundIdx) {
     renderDept(foundDept); 
